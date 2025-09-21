@@ -1,0 +1,41 @@
+{
+  "agent": {
+    "name": "MDS Knowledge Capture Agent",
+    "version": "1.0.0",
+    "schedule": {
+      "enabled": true,
+      "interval": "weekly",
+      "day_of_week": "sunday",
+      "time": "02:00"
+    }
+  },
+  "primary_url": "https://www.cisco.com/c/en/us/td/docs/storage/san_switches/mds9000/roadmaps/rel90.html",
+  "download": {
+    "max_concurrent": 5,
+    "timeout_seconds": 300,
+    "retry_attempts": 3,
+    "retry_delay": 5,
+    "user_agent": "MDS-Knowledge-Capture-Agent/1.0"
+  },
+  "storage": {
+    "current_path": "knowledge_source/current",
+    "archive_path": "knowledge_source/archive",
+    "database_path": "mds_metadata.db"
+  },
+  "pdf_processing": {
+    "naming_pattern": "mds_{version}_{date}.pdf",
+    "min_file_size_kb": 10,
+    "max_file_size_mb": 100
+  },
+  "rag": {
+    "chunk_size": 1000,
+    "chunk_overlap": 200,
+    "embeddings_model": "text-embedding-ada-002",
+    "vector_store": "chromadb"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file": "logs/agent.log"
+  }
+}

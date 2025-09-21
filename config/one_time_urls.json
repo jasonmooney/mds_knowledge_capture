@@ -1,0 +1,12 @@
+{
+  "one_time_urls": [
+    {
+      "url": "https://example.com/additional-mds-doc.pdf",
+      "description": "Additional MDS documentation",
+      "priority": "high",
+      "processed": false,
+      "added_date": "2025-09-20"
+    }
+  ],
+  "processed_urls": []
+}
