@@ -61,25 +61,51 @@ class RAGDocumentProcessor:
             separators=["\\n\\n", "\\n", " ", ""]
         )
         
-        # Initialize embeddings with OpenRouter
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        if openrouter_api_key:
-            try:
-                from langchain_openai import OpenAIEmbeddings
-                # Set environment variable for OpenAI client
-                os.environ["OPENAI_API_KEY"] = openrouter_api_key
-                os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
-                
-                self.embeddings = OpenAIEmbeddings(
-                    model="text-embedding-3-small"  # Use OpenAI embedding model via OpenRouter
-                )
-                logger.info("OpenRouter embeddings initialized")
-            except ImportError as e:
-                logger.warning(f"OpenAI embeddings not available: {e}")
+        # Initialize local GPU embeddings
+        try:
+            from src.local_gpu_embeddings import LocalGPUEmbeddings, get_recommended_model
+            
+            # Use high-quality model for RTX 5090 with 34GB VRAM
+            model_name = get_recommended_model(gpu_memory_gb=34.0)
+            logger.info(f"Initializing local GPU embeddings with model: {model_name}")
+            
+            self.embeddings = LocalGPUEmbeddings(
+                model_name=model_name,
+                device="cuda",  # Force CUDA for RTX 5090
+                batch_size=64   # Large batch size for RTX 5090
+            )
+            
+            # Log model info
+            model_info = self.embeddings.get_model_info()
+            logger.info(f"Local GPU embeddings ready:")
+            logger.info(f"  Model: {model_info['model_name']}")
+            logger.info(f"  Device: {model_info['device']}")
+            logger.info(f"  GPU: {model_info.get('gpu_name', 'N/A')}")
+            logger.info(f"  Embedding dim: {model_info['embedding_dimension']}")
+            logger.info(f"  Batch size: {model_info['batch_size']}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize local GPU embeddings: {e}")
+            logger.info("Falling back to OpenRouter embeddings...")
+            
+            # Fallback to OpenRouter if local GPU fails
+            openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+            if openrouter_api_key:
+                try:
+                    from langchain_openai import OpenAIEmbeddings
+                    os.environ["OPENAI_API_KEY"] = openrouter_api_key
+                    os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
+                    
+                    self.embeddings = OpenAIEmbeddings(
+                        model="text-embedding-3-small"
+                    )
+                    logger.info("OpenRouter embeddings initialized as fallback")
+                except ImportError as e:
+                    logger.warning(f"OpenAI embeddings not available: {e}")
+                    self.embeddings = None
+            else:
+                logger.warning("OPENROUTER_API_KEY not found, no fallback available")
                 self.embeddings = None
-        else:
-            logger.warning("OPENROUTER_API_KEY not found in environment")
-            self.embeddings = None
             
         # Initialize vector store if we have embeddings
         if self.embeddings:
