@@ -16,6 +16,11 @@ import hashlib
 from datetime import datetime
 import json
 import os
+import ssl
+
+# Suppress SSL warnings for Cisco documentation sites
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,7 @@ class MDSDocumentScraper:
                 url, 
                 headers=self.session_headers, 
                 timeout=self.timeout,
-                verify=True
+                verify=False  # Disable SSL verification for Cisco docs
             )
             response.raise_for_status()
             
@@ -151,9 +156,18 @@ class MDSDocumentScraper:
             
             logger.info(f"Downloading {url} -> {filename}")
             
+            # Create SSL context that doesn't verify certificates  
+            import ssl
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self.timeout),
-                headers=self.session_headers
+                headers=self.session_headers,
+                connector=connector
             ) as session:
                 async with session.get(url) as response:
                     response.raise_for_status()

@@ -1,9 +1,16 @@
 {
   "one_time_urls": [
     {
-      "url": "https://example.com/additional-mds-doc.pdf",
-      "description": "Additional MDS documentation",
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/mds9000/sw/9x/release-notes/cisco-mds-9000-nx-os-release-notes-944.html",
+      "description": "MDS 9000 NX-OS Release Notes 9.4.4",
       "priority": "high",
+      "processed": false,
+      "added_date": "2025-09-20"
+    },
+    {
+      "url": "https://www.cisco.com/c/en/us/td/docs/dcn/mds9000/sw/9x/command/cisco-mds-9000-nx-os-command-reference-guide-9x.html",
+      "description": "MDS 9000 NX-OS Command Reference Guide 9.x",
+      "priority": "high", 
       "processed": false,
       "added_date": "2025-09-20"
     }
