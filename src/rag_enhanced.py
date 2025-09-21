@@ -35,6 +35,7 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 from metadata import MetadataManager
+from table_aware_processor import TableAwareProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +67,20 @@ class EnhancedRAGProcessor:
         else:
             self.pdf_loader_available = True
         
-        # Initialize text splitter
+        # Initialize text splitter and table-aware processor
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
             length_function=len,
             separators=["\\n\\n", "\\n", " ", ""]
+        )
+        
+        # Initialize table-aware processor for structured content
+        self.table_processor = TableAwareProcessor(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            table_chunk_size=2000,  # Larger chunks for tables
+            preserve_context=300    # More context for tables
         )
         
         # Initialize ChromaDB
@@ -146,19 +155,34 @@ class EnhancedRAGProcessor:
                 logger.warning(f"No content loaded from {pdf_path}")
                 return []
             
-            # Split into chunks
-            chunks = self.text_splitter.split_documents(pages)
-            
-            # Add metadata to chunks
+            # Get PDF name for metadata
             pdf_name = Path(pdf_path).name
-            for i, chunk in enumerate(chunks):
-                chunk.metadata.update({
+            
+            # Use table-aware processing instead of standard splitting
+            chunks = self.table_processor.smart_chunk_document(Document(
+                page_content="\\n".join([page.page_content for page in pages]),
+                metadata={
                     'source_file': pdf_name,
+                    'file_path': str(pdf_path),
+                    'processed_at': datetime.now().isoformat()
+                }
+            ))
+            
+            # Update metadata for all chunks
+            for i, chunk in enumerate(chunks):
+                # Preserve existing metadata from table processor
+                if 'source_file' not in chunk.metadata:
+                    chunk.metadata['source_file'] = pdf_name
+                    
+                chunk.metadata.update({
                     'chunk_id': i,
                     'total_chunks': len(chunks),
-                    'processed_at': datetime.now().isoformat(),
                     'file_path': str(pdf_path)
                 })
+                
+                # Ensure processed_at is set
+                if 'processed_at' not in chunk.metadata:
+                    chunk.metadata['processed_at'] = datetime.now().isoformat()
             
             logger.info(f"✅ Created {len(chunks)} chunks from {pdf_name}")
             return chunks
