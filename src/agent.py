@@ -4,6 +4,7 @@ Orchestrates web scraping, document processing, and revision control.
 """
 
 import os
+import sys
 import json
 import asyncio
 from datetime import datetime
@@ -12,6 +13,11 @@ from pathlib import Path
 import logging
 from dotenv import load_dotenv
 
+# Add project root to Python path for imports
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END, START
@@ -19,9 +25,9 @@ from langgraph.prebuilt import ToolNode
 from langchain_core.tools import tool
 from langsmith import traceable
 
-from metadata import MetadataManager
-from scraper import MDSDocumentScraper
-from revision_control import RevisionController
+from src.metadata import MetadataManager
+from src.scraper import MDSDocumentScraper
+from src.revision_control import RevisionController
 
 # Load environment variables
 load_dotenv()
@@ -154,10 +160,32 @@ class MDSKnowledgeCaptureAgent:
         return state
     
     def scrape_documents(self, state: AgentState) -> AgentState:
-        """Scrape URLs and discover PDF documents."""
+        """Scrape URLs and discover PDF documents with intelligent roadmap traversal."""
         discovered_pdfs = []
         
-        for url in state["urls"]:
+        # Check if primary URL is the roadmap - use intelligent discovery
+        roadmap_url = "https://www.cisco.com/c/en/us/td/docs/storage/san_switches/mds9000/roadmaps/rel90.html"
+        
+        if roadmap_url in state["urls"]:
+            logger.info("🚀 Using intelligent roadmap discovery")
+            try:
+                # Use enhanced discovery from roadmap
+                roadmap_pdfs = self.scraper.discover_documents_from_roadmap(roadmap_url)
+                discovered_pdfs.extend(roadmap_pdfs)
+                logger.info(f"✅ Intelligent discovery found {len(roadmap_pdfs)} unique documents")
+                
+                # Remove roadmap URL from regular processing
+                remaining_urls = [url for url in state["urls"] if url != roadmap_url]
+            except Exception as e:
+                error_msg = f"Error in intelligent roadmap discovery: {str(e)}"
+                state["errors"].append(error_msg)
+                logger.error(error_msg)
+                remaining_urls = state["urls"]  # Fallback to all URLs
+        else:
+            remaining_urls = state["urls"]
+        
+        # Process any remaining URLs with standard scraping
+        for url in remaining_urls:
             try:
                 logger.info(f"Scraping {url}")
                 soup = self.scraper.fetch_page(url)
@@ -179,7 +207,7 @@ class MDSKnowledgeCaptureAgent:
         state["discovered_pdfs"] = discovered_pdfs
         state["status"] = "documents_discovered"
         
-        logger.info(f"Total PDFs discovered: {len(discovered_pdfs)}")
+        logger.info(f"🎯 Total PDFs discovered: {len(discovered_pdfs)}")
         return state
     
     def download_documents(self, state: AgentState) -> AgentState:

@@ -11,7 +11,7 @@ from typing import List, Dict, Optional, Tuple
 import logging
 import json
 
-from metadata import MetadataManager
+from src.metadata import MetadataManager
 
 logger = logging.getLogger(__name__)
 

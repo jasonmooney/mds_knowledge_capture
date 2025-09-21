@@ -9,6 +9,13 @@ langsmith>=0.0.83
 httpx>=0.25.0
 tenacity>=8.2.3
 
+# NVIDIA GPU Acceleration (RTX 5090 optimized - CUDA 12.9)
+torch==2.8.0+cu129
+torchvision==0.23.0+cu129
+cupy-cuda12x>=13.6.0
+accelerate>=1.10.0
+transformers[torch]>=4.56.0
+
 # Web scraping and HTTP
 requests>=2.31.0
 beautifulsoup4>=4.12.2

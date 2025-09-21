@@ -34,7 +34,8 @@
   "storage": {
     "current_path": "knowledge_source/current",
     "archive_path": "knowledge_source/archive",
-    "database_path": "mds_metadata.db"
+    "database_path": "mds_metadata.db",
+    "download_directory": "downloaded_docs"
   },
   "pdf_processing": {
     "naming_pattern": "mds_{version}_{date}.pdf",

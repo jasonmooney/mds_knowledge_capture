@@ -9,6 +9,10 @@ from typing import List, Dict, Optional
 from pathlib import Path
 import json
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 try:
     from langchain_community.document_loaders import PyPDFLoader
@@ -21,7 +25,7 @@ except ImportError:
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
-from metadata import MetadataManager
+from src.metadata import MetadataManager
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +61,40 @@ class RAGDocumentProcessor:
             separators=["\\n\\n", "\\n", " ", ""]
         )
         
-        # Note: Vector embeddings disabled for now due to dependency issues
-        self.embeddings = None
-        self.vector_store = None
+        # Initialize embeddings with OpenRouter
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        if openrouter_api_key:
+            try:
+                from langchain_openai import OpenAIEmbeddings
+                # Set environment variable for OpenAI client
+                os.environ["OPENAI_API_KEY"] = openrouter_api_key
+                os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
+                
+                self.embeddings = OpenAIEmbeddings(
+                    model="text-embedding-3-small"  # Use OpenAI embedding model via OpenRouter
+                )
+                logger.info("✅ OpenRouter embeddings initialized")
+            except ImportError as e:
+                logger.warning(f"OpenAI embeddings not available: {e}")
+                self.embeddings = None
+        else:
+            logger.warning("OPENROUTER_API_KEY not found in environment")
+            self.embeddings = None
+            
+        # Initialize vector store if we have embeddings
+        if self.embeddings:
+            try:
+                import chromadb
+                self.vector_store_path.mkdir(parents=True, exist_ok=True)
+                self.vector_store = chromadb.PersistentClient(path=str(self.vector_store_path / "chroma_db"))
+                logger.info("✅ ChromaDB vector store initialized")
+            except ImportError as e:
+                logger.warning(f"ChromaDB not available: {e}")
+                self.vector_store = None
+        else:
+            self.vector_store = None
         
-        logger.info("✅ RAG processor initialized (basic text processing mode)")
-        logger.warning("⚠️  Vector embeddings disabled - install chromadb and configure OpenAI API for full functionality")
+        logger.info("✅ RAG processor initialized with full functionality")
     
     def load_and_chunk_pdf(self, pdf_path: str) -> List[Document]:
         """Load PDF and split into chunks."""

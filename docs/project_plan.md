@@ -4,6 +4,41 @@
 
 This plan outlines building an agentic agent for Cisco MDS docs. Follow in VSCode by opening this file and using the outline view.
 
+## 🚨 **CRITICAL ARCHITECTURE RULES**
+
+### **NEVER DO:**
+- ❌ Create new Python files in the main project directory
+- ❌ Create duplicate functionality (enhanced_*.py files)
+- ❌ Add new classes when existing ones can be enhanced
+- ❌ Create separate agent files when src/agent.py exists
+- ❌ Bypass the established src/ directory structure
+
+### **ALWAYS DO:**
+- ✅ Enhance existing files in src/ directory (src/scraper.py, src/agent.py, etc.)
+- ✅ Use the existing class structure (MDSDocumentScraper, MDSKnowledgeAgent, etc.)
+- ✅ Add new methods to existing classes rather than new files
+- ✅ Follow the established import pattern: `from src.module import Class`
+- ✅ Maintain the LangGraph-based agent workflow in src/agent.py
+- ✅ Put all utilities and scripts in scripts/ directory if needed
+- ✅ Document changes in CHANGE.md with proper reasoning
+
+### **DIRECTORY STRUCTURE (IMMUTABLE):**
+```
+mds_knowledge_capture/
+├── src/                    # ALL PYTHON CLASSES GO HERE
+│   ├── agent.py           # Main LangGraph agent - ENHANCE THIS
+│   ├── scraper.py         # Document scraper - ENHANCE THIS  
+│   ├── metadata.py        # Metadata management
+│   ├── revision_control.py # Version control
+│   └── rag_prep.py        # RAG processing
+├── config/                # Configuration files only
+├── scripts/               # Utility scripts and validation
+├── docs/                  # Documentation
+├── knowledge_source/      # Downloaded documents
+├── chroma_db/            # Vector database
+└── [ROOT]                # Config files ONLY (.env, requirements.txt, etc.)
+```
+
 ## Overview
 - **Goal**: Autonomous PDF downloads, metadata tracking, revision control, and RAG setup.
 - **Tech Stack**: Python, LangChain/LangGraph, SQLite, Git.

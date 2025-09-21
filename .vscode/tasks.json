@@ -30,7 +30,7 @@
         {
             "label": "Run Agent",
             "type": "shell",
-            "command": "python",
+            "command": ".\\venv\\Scripts\\python.exe",
             "args": ["src/agent.py"],
             "group": "build",
             "presentation": {
@@ -43,7 +43,7 @@
         {
             "label": "Run Agent Once",
             "type": "shell", 
-            "command": "python",
+            "command": ".\\venv\\Scripts\\python.exe",
             "args": [
                 "src/scheduler.py",
                 "--once"
@@ -59,7 +59,7 @@
         {
             "label": "Start Scheduler",
             "type": "shell",
-            "command": "python", 
+            "command": ".\\venv\\Scripts\\python.exe", 
             "args": [
                 "src/scheduler.py"
             ],
@@ -98,10 +98,10 @@
         {
             "label": "Process RAG Documents", 
             "type": "shell",
-            "command": "python",
+            "command": ".\\venv\\Scripts\\python.exe",
             "args": [
                 "-c",
-                "from src.rag_prep import RAGDocumentProcessor; processor = RAGDocumentProcessor(); processor.process_current_documents()"
+                "import sys; import os; sys.path.insert(0, os.getcwd()); from src.rag_prep import RAGDocumentProcessor; processor = RAGDocumentProcessor(); processor.process_current_documents()"
             ],
             "group": "build",
             "presentation": {

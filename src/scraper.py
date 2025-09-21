@@ -355,6 +355,106 @@ class MDSDocumentScraper:
             doc_info['version'] = '9.0'
             
         return doc_info
+    
+    def discover_documents_from_roadmap(self, roadmap_url: str, max_documents: int = 50) -> List[Dict[str, str]]:
+        """Discover all documents from Cisco MDS roadmap page with intelligent traversal."""
+        logger.info(f"Starting intelligent document discovery from: {roadmap_url}")
+        
+        # Track visited URLs to avoid cycles
+        visited_urls = set()
+        allowed_domains = {'www.cisco.com', 'cisco.com'}
+        
+        # Fetch the main roadmap page
+        soup = self.fetch_page(roadmap_url)
+        if not soup:
+            logger.error(f"Failed to fetch roadmap page: {roadmap_url}")
+            return []
+        
+        # Extract document categories and links from roadmap table
+        documents = []
+        tables = soup.find_all('table')
+        
+        for table in tables:
+            rows = table.find_all('tr')
+            current_category = "Unknown"
+            
+            for row in rows:
+                cells = row.find_all(['td', 'th'])
+                if len(cells) >= 2:
+                    first_cell = cells[0]
+                    
+                    # Check if this is a category header
+                    if first_cell.get('colspan') or first_cell.find('strong'):
+                        category_text = first_cell.get_text(strip=True)
+                        if category_text and len(category_text) > 5:
+                            current_category = category_text
+                            continue
+                    
+                    # Look for document links
+                    for cell in cells:
+                        links = cell.find_all('a', href=True)
+                        for link in links:
+                            href = link.get('href', '')
+                            text = link.get_text(strip=True)
+                            
+                            if href and text and len(text) > 10:
+                                full_url = urljoin(roadmap_url, href)
+                                parsed = urlparse(full_url)
+                                
+                                if parsed.netloc in allowed_domains:
+                                    documents.append({
+                                        'url': full_url,
+                                        'title': text,
+                                        'category': current_category
+                                    })
+        
+        logger.info(f"Found {len(documents)} document pages in roadmap")
+        
+        # Now visit each document page to look for PDFs
+        all_pdfs = []
+        seen_urls = set()  # Prevent duplicates
+        processed_count = 0
+        
+        for doc in documents:
+            if processed_count >= max_documents:
+                logger.info(f"Processed {processed_count} documents, stopping at limit")
+                break
+                
+            doc_url = doc['url']
+            
+            if doc_url in visited_urls:
+                continue
+            
+            logger.info(f"Processing document page: {doc['title']}")
+            visited_urls.add(doc_url)
+            
+            # Fetch the document page
+            doc_soup = self.fetch_page(doc_url)
+            if not doc_soup:
+                continue
+            
+            # Look for PDF links on this page
+            pdf_links = self.extract_pdf_links(doc_soup, doc_url)
+            
+            for pdf in pdf_links:
+                # Skip duplicates
+                if pdf['url'] in seen_urls:
+                    continue
+                    
+                seen_urls.add(pdf['url'])
+                pdf['category'] = doc['category']  # Inherit category from parent
+                pdf['parent_title'] = doc['title']
+                pdf['source_page'] = doc_url
+                all_pdfs.append(pdf)
+            
+            processed_count += 1
+            
+            # Be respectful to Cisco servers
+            import time
+            time.sleep(0.5)
+        
+        logger.info(f"Discovery complete! Found {len(all_pdfs)} unique PDF documents")
+        return all_pdfs
 
 
 # Synchronous wrapper function for easier testing
