@@ -374,30 +374,37 @@ class MDSDocumentScraper:
         documents = []
         tables = soup.find_all('table')
         
-        for table in tables:
+        logger.info(f"Found {len(tables)} tables on roadmap page")
+        
+        for table_idx, table in enumerate(tables):
+            logger.info(f"Processing table {table_idx + 1}")
             rows = table.find_all('tr')
             current_category = "Unknown"
             
-            for row in rows:
+            for row_idx, row in enumerate(rows):
                 cells = row.find_all(['td', 'th'])
+                logger.debug(f"Row {row_idx}: {len(cells)} cells")
+                
                 if len(cells) >= 2:
                     first_cell = cells[0]
+                    second_cell = cells[1] if len(cells) > 1 else None
                     
-                    # Check if this is a category header
-                    if first_cell.get('colspan') or first_cell.find('strong'):
-                        category_text = first_cell.get_text(strip=True)
-                        if category_text and len(category_text) > 5:
-                            current_category = category_text
-                            continue
+                    # Get category from first cell
+                    category_text = first_cell.get_text(strip=True)
+                    if category_text and len(category_text) > 3 and len(category_text) < 100:
+                        current_category = category_text
+                        logger.debug(f"Found category: {current_category}")
                     
-                    # Look for document links
-                    for cell in cells:
-                        links = cell.find_all('a', href=True)
+                    # Look for links in the second cell (which contains the documents)
+                    if second_cell:
+                        links = second_cell.find_all('a', href=True)
+                        logger.debug(f"Found {len(links)} links in second cell")
+                        
                         for link in links:
                             href = link.get('href', '')
                             text = link.get_text(strip=True)
                             
-                            if href and text and len(text) > 10:
+                            if href and text and len(text) > 5:
                                 full_url = urljoin(roadmap_url, href)
                                 parsed = urlparse(full_url)
                                 
@@ -407,6 +414,7 @@ class MDSDocumentScraper:
                                         'title': text,
                                         'category': current_category
                                     })
+                                    logger.debug(f"Added document: {text} -> {full_url}")
         
         logger.info(f"Found {len(documents)} document pages in roadmap")
         

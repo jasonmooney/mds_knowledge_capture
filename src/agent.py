@@ -92,7 +92,7 @@ class MDSKnowledgeCaptureAgent:
                     }
                 }
             )
-            logger.info("✅ Mistral Small 3.2 24B initialized successfully")
+            logger.info("Mistral Small 3.2 24B initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize Mistral LLM: {e}")
             logger.info("💡 Try running: python setup_mistral.py")
@@ -167,12 +167,12 @@ class MDSKnowledgeCaptureAgent:
         roadmap_url = "https://www.cisco.com/c/en/us/td/docs/storage/san_switches/mds9000/roadmaps/rel90.html"
         
         if roadmap_url in state["urls"]:
-            logger.info("🚀 Using intelligent roadmap discovery")
+            logger.info("Using intelligent roadmap discovery")
             try:
                 # Use enhanced discovery from roadmap
                 roadmap_pdfs = self.scraper.discover_documents_from_roadmap(roadmap_url)
                 discovered_pdfs.extend(roadmap_pdfs)
-                logger.info(f"✅ Intelligent discovery found {len(roadmap_pdfs)} unique documents")
+                logger.info(f"Intelligent discovery found {len(roadmap_pdfs)} unique documents")
                 
                 # Remove roadmap URL from regular processing
                 remaining_urls = [url for url in state["urls"] if url != roadmap_url]
@@ -207,7 +207,7 @@ class MDSKnowledgeCaptureAgent:
         state["discovered_pdfs"] = discovered_pdfs
         state["status"] = "documents_discovered"
         
-        logger.info(f"🎯 Total PDFs discovered: {len(discovered_pdfs)}")
+        logger.info(f"Total PDFs discovered: {len(discovered_pdfs)}")
         return state
     
     def download_documents(self, state: AgentState) -> AgentState:

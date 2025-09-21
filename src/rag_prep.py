@@ -73,7 +73,7 @@ class RAGDocumentProcessor:
                 self.embeddings = OpenAIEmbeddings(
                     model="text-embedding-3-small"  # Use OpenAI embedding model via OpenRouter
                 )
-                logger.info("✅ OpenRouter embeddings initialized")
+                logger.info("OpenRouter embeddings initialized")
             except ImportError as e:
                 logger.warning(f"OpenAI embeddings not available: {e}")
                 self.embeddings = None
@@ -94,7 +94,7 @@ class RAGDocumentProcessor:
         else:
             self.vector_store = None
         
-        logger.info("✅ RAG processor initialized with full functionality")
+        logger.info("RAG processor initialized with full functionality")
     
     def load_and_chunk_pdf(self, pdf_path: str) -> List[Document]:
         """Load PDF and split into chunks."""
