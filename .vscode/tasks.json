@@ -2,6 +2,32 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Setup Mistral",
+            "type": "shell",
+            "command": "python",
+            "args": ["setup_mistral.py"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Test Mistral",
+            "type": "shell",
+            "command": "python", 
+            "args": ["scripts/validation/test_mistral.py"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
             "label": "Run Agent",
             "type": "shell",
             "command": "python",
@@ -15,11 +41,75 @@
             }
         },
         {
+            "label": "Run Agent Once",
+            "type": "shell", 
+            "command": "python",
+            "args": [
+                "src/scheduler.py",
+                "--once"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Start Scheduler",
+            "type": "shell",
+            "command": "python", 
+            "args": [
+                "src/scheduler.py"
+            ],
+            "group": "build",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
             "label": "Run Tests",
             "type": "shell",
             "command": "pytest",
             "args": ["tests/"],
             "group": "test"
+        },
+        {
+            "label": "Run Validation Tests",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "python scripts/validation/test_agent.py && python scripts/validation/test_metadata.py && python scripts/validation/test_scraper.py && python scripts/validation/test_revision_control.py && python scripts/validation/test_rag_prep.py"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always", 
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Process RAG Documents", 
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-c",
+                "from src.rag_prep import RAGDocumentProcessor; processor = RAGDocumentProcessor(); processor.process_current_documents()"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
         },
         {
             "label": "Update Docs",

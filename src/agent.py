@@ -63,12 +63,34 @@ class MDSKnowledgeCaptureAgent:
             metadata_manager=self.metadata_manager
         )
         
-        # Initialize LLM
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0,
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
+        # Initialize LLM with Mistral via OpenRouter
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        if not openrouter_api_key:
+            logger.error("OPENROUTER_API_KEY not found!")
+            logger.info("🔧 Setup required:")
+            logger.info("   1. Get free API key at: https://openrouter.ai/")
+            logger.info("   2. Run: python setup_mistral.py")
+            logger.info("   3. Set: export OPENROUTER_API_KEY='your_key'")
+            raise ValueError("OpenRouter API key required for Mistral LLM")
+        
+        try:
+            self.llm = ChatOpenAI(
+                model="mistralai/mistral-small-3.2-24b-instruct:free",
+                temperature=0.1,
+                openai_api_key=openrouter_api_key,
+                openai_api_base="https://openrouter.ai/api/v1",
+                model_kwargs={
+                    "extra_headers": {
+                        "HTTP-Referer": "https://github.com/jasonmooney/mds_knowledge_capture",
+                        "X-Title": "MDS Knowledge Capture Agent"
+                    }
+                }
+            )
+            logger.info("✅ Mistral Small 3.2 24B initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Mistral LLM: {e}")
+            logger.info("💡 Try running: python setup_mistral.py")
+            raise
         
         # Build the graph
         self.graph = self._build_graph()

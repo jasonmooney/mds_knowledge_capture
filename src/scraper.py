@@ -300,6 +300,47 @@ class MDSDocumentScraper:
         
         logger.info(f"Total successful downloads: {len(all_results)}")
         return all_results
+    
+    def extract_document_info(self, url: str) -> Dict[str, str]:
+        """Extract document information from URL patterns."""
+        # Default document info
+        doc_info = {
+            'title': 'Unknown Document',
+            'category': 'General',
+            'version': 'Unknown',
+            'date': datetime.now().strftime('%Y-%m-%d')
+        }
+        
+        # Extract from URL patterns
+        filename = url.split('/')[-1].replace('.html', '').replace('.pdf', '')
+        
+        # Categorization logic
+        if 'release-notes' in url:
+            if 'transceivers' in url:
+                doc_info['category'] = 'Transceiver Release Notes'
+                doc_info['title'] = 'MDS 9000 Series Transceivers Release Notes'
+            else:
+                doc_info['category'] = 'System Release Notes'
+                doc_info['title'] = 'MDS 9000 NX-OS Release Notes'
+        elif 'command' in url:
+            doc_info['category'] = 'Command Reference'
+            doc_info['title'] = 'MDS 9000 NX-OS Command Reference Guide'
+        elif 'Recommended_Releases' in url:
+            doc_info['category'] = 'Recommended Releases'
+            doc_info['title'] = 'MDS NX-OS Recommended Releases'
+        elif 'roadmaps' in url:
+            doc_info['category'] = 'Roadmap'
+            doc_info['title'] = 'MDS 9000 Release Roadmap'
+        
+        # Version extraction
+        if '944' in url:
+            doc_info['version'] = '9.4.4'
+        elif '9x' in url:
+            doc_info['version'] = '9.x'
+        elif 'rel90' in url:
+            doc_info['version'] = '9.0'
+            
+        return doc_info
 
 
 # Synchronous wrapper function for easier testing

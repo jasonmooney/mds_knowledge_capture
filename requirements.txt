@@ -1,9 +1,13 @@
 # Core agent and AI framework
 langchain>=0.1.0
 langchain-community>=0.0.20
-langchain-openai>=0.0.8
+langchain-openai>=0.0.8  # Also compatible with OpenRouter
 langgraph>=0.0.30
 langsmith>=0.0.83
+
+# OpenRouter for free LLMs (Mistral, Llama, etc.)
+httpx>=0.25.0
+tenacity>=8.2.3
 
 # Web scraping and HTTP
 requests>=2.31.0
