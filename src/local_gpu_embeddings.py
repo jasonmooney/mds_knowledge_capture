@@ -70,6 +70,12 @@ class LocalGPUEmbeddings:
             return []
             
         logger.info(f"Embedding {len(texts)} documents on {self.device}")
+        
+        # Force GPU memory allocation monitoring
+        if self.device == "cuda":
+            initial_memory = torch.cuda.memory_allocated(0) / 1e9
+            logger.info(f"GPU memory before embedding: {initial_memory:.3f}GB")
+        
         start_time = torch.cuda.Event(enable_timing=True) if self.device == "cuda" else None
         end_time = torch.cuda.Event(enable_timing=True) if self.device == "cuda" else None
         
@@ -77,29 +83,39 @@ class LocalGPUEmbeddings:
             if start_time:
                 start_time.record()
                 
-            # Process in batches for memory efficiency
+            # Process in batches for memory efficiency with explicit GPU usage
             embeddings = []
             for i in range(0, len(texts), self.batch_size):
                 batch = texts[i:i + self.batch_size]
+                
+                # Force CUDA processing and keep tensors on GPU during computation
                 batch_embeddings = self.model.encode(
                     batch,
-                    convert_to_tensor=False,
+                    convert_to_tensor=True,  # Keep as CUDA tensors during processing
+                    device=self.device,      # Explicitly specify device
                     show_progress_bar=False,
-                    batch_size=self.batch_size
+                    batch_size=self.batch_size,
+                    normalize_embeddings=True  # GPU-accelerated normalization
                 )
-                embeddings.extend(batch_embeddings.tolist())
                 
-                if i % (self.batch_size * 10) == 0:  # Log every 10 batches
-                    logger.debug(f"Processed {i + len(batch)}/{len(texts)} documents")
+                # Convert to list only after GPU processing is complete
+                embeddings.extend(batch_embeddings.cpu().tolist())
+                
+                if i % (self.batch_size * 5) == 0:  # Log every 5 batches
+                    current_memory = torch.cuda.memory_allocated(0) / 1e9 if self.device == "cuda" else 0
+                    logger.info(f"Processed {i + len(batch)}/{len(texts)} documents, GPU memory: {current_memory:.3f}GB")
             
             if end_time and start_time:
                 end_time.record()
-                torch.cuda.synchronize()
+                torch.cuda.synchronize()  # Ensure all CUDA operations complete
                 elapsed_ms = start_time.elapsed_time(end_time)
                 rate = len(texts) / (elapsed_ms / 1000)
-                logger.info(f"GPU embedding rate: {rate:.1f} docs/second ({elapsed_ms:.1f}ms total)")
+                logger.info(f"🚀 GPU embedding rate: {rate:.1f} docs/second ({elapsed_ms:.1f}ms total)")
+                
+                final_memory = torch.cuda.memory_allocated(0) / 1e9
+                logger.info(f"GPU memory after embedding: {final_memory:.3f}GB")
             
-            logger.info(f"Successfully embedded {len(texts)} documents")
+            logger.info(f"Successfully embedded {len(texts)} documents using {self.device.upper()}")
             return embeddings
             
         except Exception as e:

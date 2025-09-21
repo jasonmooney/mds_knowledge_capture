@@ -8,6 +8,7 @@
 3. **NO separate agent files when src/agent.py exists**
 4. **NO bypassing the src/ directory structure**
 5. **NO creating new classes when existing ones can be enhanced**
+6. **NO global pip installs** - ALWAYS use virtual environment
 
 ### ✅ **REQUIRED PRACTICES**
 1. **ENHANCE existing files** in src/ directory:
@@ -26,7 +27,14 @@
 
 3. **MAINTAIN the LangGraph workflow** in `src/agent.py`
 
-4. **DOCUMENT all changes** in `CHANGE.md` with proper format
+4. **ALWAYS use virtual environment for Python operations:**
+   - Use `.\venv\Scripts\pip.exe install <package>` (Windows)
+   - Use `.\venv\Scripts\python.exe <script>` (Windows)
+   - Use `./venv/bin/pip install <package>` (Unix/Linux)
+   - Use `./venv/bin/python <script>` (Unix/Linux)
+   - NEVER use global pip install when venv exists
+
+5. **DOCUMENT all changes** in `CHANGE.md` with proper format
 
 ## **DIRECTORY STRUCTURE (IMMUTABLE)**
 
@@ -48,6 +56,55 @@ mds_knowledge_capture/
     ├── requirements.txt  # ✅ Config files OK
     └── README.md         # ✅ Documentation OK
 ```
+
+## **PYTHON ENVIRONMENT MANAGEMENT**
+
+### 🐍 **VIRTUAL ENVIRONMENT RULES**
+
+**MANDATORY:** Always use the project's virtual environment for all Python operations.
+
+#### ✅ **CORRECT Commands:**
+```powershell
+# Windows PowerShell
+.\venv\Scripts\pip.exe install <package>
+.\venv\Scripts\python.exe <script.py>
+.\venv\Scripts\python.exe -m <module>
+```
+
+```bash
+# Unix/Linux/macOS
+./venv/bin/pip install <package>
+./venv/bin/python <script.py>
+./venv/bin/python -m <module>
+```
+
+#### ❌ **FORBIDDEN Commands:**
+```powershell
+pip install <package>          # Pollutes global environment
+python <script.py>             # May use wrong Python version
+pip uninstall <package>        # Removes from wrong environment
+```
+
+#### 🔍 **Detection of Virtual Environment:**
+Before ANY pip install, check for:
+- `venv/` directory in project root
+- `.venv/` directory in project root  
+- VSCode tasks using `.\venv\Scripts\python.exe`
+- `requirements.txt` file (indicates managed dependencies)
+
+#### 🧹 **Environment Cleanup:**
+If global packages were accidentally installed:
+```powershell
+pip list --user                    # Check what was polluted
+pip uninstall -y <package-list>    # Clean up the mess
+```
+
+### 📋 **PRE-OPERATION CHECKLIST**
+Before ANY Python command:
+1. ☐ Check if virtual environment exists
+2. ☐ Use full path to venv pip/python
+3. ☐ Verify command targets the venv, not global
+4. ☐ Test in venv first before assuming success
 
 ## **ENHANCEMENT PATTERNS**
 

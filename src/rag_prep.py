@@ -208,7 +208,7 @@ class RAGDocumentProcessor:
                 results['errors'].append(error_msg)
                 logger.error(error_msg)
         
-        # Save chunks to JSON for now (since vector store is disabled)
+        # Save chunks to JSON AND vector store
         if all_chunks:
             chunks_output_path = self.vector_store_path / "chunks.json"
             chunks_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -224,6 +224,54 @@ class RAGDocumentProcessor:
                 json.dump(chunks_data, f, indent=2, ensure_ascii=False)
             
             logger.info(f"💾 Saved {len(chunks_data)} chunks to {chunks_output_path}")
+            
+            # Store embeddings in vector database if available
+            if self.vector_store and self.embeddings:
+                logger.info(f"🚀 Storing {len(all_chunks)} chunks in vector database...")
+                try:
+                    collection = self.vector_store.get_or_create_collection("mds_documents")
+                    
+                    # Clear existing collection to avoid duplicates (if it has data)
+                    try:
+                        existing_count = collection.count()
+                        if existing_count > 0:
+                            logger.info(f"Clearing {existing_count} existing chunks from vector store...")
+                            # Delete all documents in collection
+                            collection.delete(where={})
+                    except Exception as clear_error:
+                        logger.warning(f"Could not clear collection: {clear_error}")
+                        # Create a fresh collection with a new name
+                        import time
+                        collection_name = f"mds_documents_{int(time.time())}"
+                        collection = self.vector_store.get_or_create_collection(collection_name)
+                    
+                    # Prepare data for ChromaDB
+                    texts = [chunk.page_content for chunk in all_chunks]
+                    metadatas = [chunk.metadata for chunk in all_chunks]
+                    ids = [f"chunk_{i}" for i in range(len(all_chunks))]
+                    
+                    # Generate embeddings using our local GPU embeddings
+                    logger.info("🧠 Generating embeddings with local GPU...")
+                    embeddings = self.embeddings.embed_documents(texts)
+                    
+                    # Store in ChromaDB
+                    logger.info("💽 Storing embeddings in ChromaDB...")
+                    collection.add(
+                        documents=texts,
+                        metadatas=metadatas,
+                        embeddings=embeddings,
+                        ids=ids
+                    )
+                    
+                    # Verify storage
+                    stored_count = collection.count()
+                    logger.info(f"✅ Successfully stored {stored_count} chunks in vector database")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to store embeddings in vector database: {e}")
+                    results['errors'].append(f"Vector storage failed: {str(e)}")
+            else:
+                logger.warning("⚠️  Vector store or embeddings not available - skipping vector storage")
         
         end_time = datetime.now()
         results['processing_time'] = str(end_time - start_time)
