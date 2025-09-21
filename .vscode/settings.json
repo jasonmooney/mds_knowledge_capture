@@ -1,0 +1,7 @@
+{
+    "markdown.preview.openMarkdownLinks": "inEditor",
+    "python.defaultInterpreterPath": "./venv/bin/python",
+    "files.associations": {
+        "*.md": "markdown"
+    }
+}
