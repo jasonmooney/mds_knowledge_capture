@@ -1,6 +1,6 @@
 """
 RAG (Retrieval-Augmented Generation) document preparation for MDS documentation.
-Handles PDF chunking and vector store integration.
+Handles PDF chunking and basic text processing (vector store disabled for now).
 """
 
 import os
@@ -10,11 +10,16 @@ from pathlib import Path
 import json
 from datetime import datetime
 
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.schema import Document
+try:
+    from langchain_community.document_loaders import PyPDFLoader
+except ImportError:
+    try:
+        from langchain.document_loaders import PyPDFLoader
+    except ImportError:
+        PyPDFLoader = None
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 
 from metadata import MetadataManager
 
@@ -37,6 +42,13 @@ class RAGDocumentProcessor:
         self.chunk_overlap = chunk_overlap
         self.metadata_manager = metadata_manager or MetadataManager()
         
+        # Check if PyPDFLoader is available
+        if PyPDFLoader is None:
+            logger.warning("PyPDFLoader not available. Install langchain-community.")
+            self.pdf_loader_available = False
+        else:
+            self.pdf_loader_available = True
+        
         # Initialize text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
@@ -45,22 +57,19 @@ class RAGDocumentProcessor:
             separators=["\\n\\n", "\\n", " ", ""]
         )
         
-        # Initialize embeddings (requires OpenAI API key)
-        try:
-            self.embeddings = OpenAIEmbeddings(
-                openai_api_key=os.getenv("OPENAI_API_KEY")
-            )
-        except Exception as e:
-            logger.warning(f"OpenAI embeddings not available: {e}")
-            self.embeddings = None
-        
-        # Vector store will be initialized when first used
+        # Note: Vector embeddings disabled for now due to dependency issues
+        self.embeddings = None
         self.vector_store = None
         
-        logger.info(f"RAG processor initialized with chunk_size={chunk_size}, overlap={chunk_overlap}")
+        logger.info("✅ RAG processor initialized (basic text processing mode)")
+        logger.warning("⚠️  Vector embeddings disabled - install chromadb and configure OpenAI API for full functionality")
     
     def load_and_chunk_pdf(self, pdf_path: str) -> List[Document]:
         """Load PDF and split into chunks."""
+        if not self.pdf_loader_available:
+            logger.error("PDF loading not available. Install langchain-community.")
+            return []
+            
         try:
             logger.info(f"Loading PDF: {pdf_path}")
             
@@ -80,266 +89,204 @@ class RAGDocumentProcessor:
             for i, chunk in enumerate(chunks):
                 chunk.metadata.update({
                     'source_file': pdf_name,
-                    'source_path': pdf_path,
-                    'chunk_index': i,
+                    'chunk_id': i,
                     'total_chunks': len(chunks),
                     'processed_at': datetime.now().isoformat()
                 })
             
-            logger.info(f"PDF {pdf_name} split into {len(chunks)} chunks")
+            logger.info(f"✅ Created {len(chunks)} chunks from {pdf_name}")
             return chunks
             
         except Exception as e:
             logger.error(f"Error processing PDF {pdf_path}: {e}")
             return []
     
-    def process_documents(self, document_paths: List[str]) -> List[Document]:
-        """Process multiple PDF documents into chunks."""
+    def process_current_documents(self, documents_path: str = "knowledge_source/current") -> Dict[str, any]:
+        """Process all current documents for RAG."""
+        logger.info("🔄 Processing current documents for RAG...")
+        
+        documents_path = Path(documents_path)
+        if not documents_path.exists():
+            logger.error(f"Documents path does not exist: {documents_path}")
+            return {'error': 'Documents path not found'}
+        
+        results = {
+            'processed_files': [],
+            'total_chunks': 0,
+            'errors': [],
+            'processing_time': None
+        }
+        
+        start_time = datetime.now()
+        
+        # Find all PDF files
+        pdf_files = list(documents_path.glob("*.pdf"))
+        
+        if not pdf_files:
+            logger.warning("No PDF files found in documents directory")
+            return results
+        
+        logger.info(f"Found {len(pdf_files)} PDF files to process")
+        
         all_chunks = []
         
-        for pdf_path in document_paths:
-            if not os.path.exists(pdf_path):
-                logger.error(f"PDF not found: {pdf_path}")
-                continue
-                
-            if not pdf_path.lower().endswith('.pdf'):
-                logger.warning(f"Skipping non-PDF file: {pdf_path}")
-                continue
-            
-            chunks = self.load_and_chunk_pdf(pdf_path)
-            all_chunks.extend(chunks)
-        
-        logger.info(f"Total chunks created: {len(all_chunks)} from {len(document_paths)} documents")
-        return all_chunks
-    
-    def initialize_vector_store(self) -> bool:
-        """Initialize or load the vector store."""
-        if not self.embeddings:
-            logger.error("Embeddings not available, cannot initialize vector store")
-            return False
-        
-        try:
-            self.vector_store_path.mkdir(parents=True, exist_ok=True)
-            
-            # Try to load existing vector store
-            if (self.vector_store_path / "index").exists():
-                logger.info("Loading existing vector store")
-                self.vector_store = Chroma(
-                    persist_directory=str(self.vector_store_path),
-                    embedding_function=self.embeddings
-                )
-            else:
-                logger.info("Creating new vector store")
-                # Will be created when first documents are added
-                self.vector_store = None
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error initializing vector store: {e}")
-            return False
-    
-    def add_documents_to_vector_store(self, chunks: List[Document]) -> bool:
-        """Add document chunks to the vector store."""
-        if not self.embeddings:
-            logger.error("Embeddings not available")
-            return False
-        
-        if not chunks:
-            logger.warning("No chunks to add to vector store")
-            return True
-        
-        try:
-            if self.vector_store is None:
-                # Create new vector store with first batch of documents
-                logger.info("Creating vector store with initial documents")
-                self.vector_store = Chroma.from_documents(
-                    documents=chunks,
-                    embedding=self.embeddings,
-                    persist_directory=str(self.vector_store_path)
-                )
-            else:
-                # Add to existing vector store
-                logger.info(f"Adding {len(chunks)} chunks to existing vector store")
-                self.vector_store.add_documents(chunks)
-            
-            # Persist the vector store
-            self.vector_store.persist()
-            
-            logger.info(f"Successfully added {len(chunks)} chunks to vector store")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error adding documents to vector store: {e}")
-            return False
-    
-    def process_current_documents(self) -> bool:
-        """Process all current documents for RAG."""
-        logger.info("Processing current documents for RAG")
-        
-        # Get current documents from metadata manager
-        current_docs = self.metadata_manager.get_all_documents(current_only=True)
-        
-        if not current_docs:
-            logger.info("No current documents to process")
-            return True
-        
-        # Extract file paths
-        pdf_paths = [doc['file_path'] for doc in current_docs if doc['file_path'].endswith('.pdf')]
-        
-        if not pdf_paths:
-            logger.warning("No PDF files found in current documents")
-            return True
-        
-        # Initialize vector store
-        if not self.initialize_vector_store():
-            return False
-        
-        # Process documents
-        all_chunks = self.process_documents(pdf_paths)
-        
-        if not all_chunks:
-            logger.warning("No chunks created from documents")
-            return True
-        
-        # Add to vector store
-        success = self.add_documents_to_vector_store(all_chunks)
-        
-        if success:
-            # Save processing metadata
-            self._save_processing_metadata(current_docs, len(all_chunks))
-        
-        return success
-    
-    def _save_processing_metadata(self, processed_docs: List[Dict], total_chunks: int) -> None:
-        """Save metadata about RAG processing."""
-        try:
-            metadata = {
-                'processed_at': datetime.now().isoformat(),
-                'total_documents': len(processed_docs),
-                'total_chunks': total_chunks,
-                'chunk_size': self.chunk_size,
-                'chunk_overlap': self.chunk_overlap,
-                'documents': [
-                    {
-                        'filename': doc['filename'],
-                        'file_path': doc['file_path'],
-                        'file_size': doc['file_size_bytes'],
-                        'version': doc.get('version'),
-                        'download_date': doc['download_date']
-                    }
-                    for doc in processed_docs
-                ]
-            }
-            
-            metadata_file = self.vector_store_path / "processing_metadata.json"
-            with open(metadata_file, 'w') as f:
-                json.dump(metadata, f, indent=2)
-            
-            logger.info(f"Processing metadata saved to {metadata_file}")
-            
-        except Exception as e:
-            logger.error(f"Error saving processing metadata: {e}")
-    
-    def search_documents(self, query: str, k: int = 5) -> List[Dict]:
-        """Search for relevant document chunks."""
-        if not self.vector_store:
-            logger.error("Vector store not initialized")
-            return []
-        
-        try:
-            results = self.vector_store.similarity_search_with_score(query, k=k)
-            
-            search_results = []
-            for doc, score in results:
-                result = {
-                    'content': doc.page_content,
-                    'source_file': doc.metadata.get('source_file'),
-                    'chunk_index': doc.metadata.get('chunk_index'),
-                    'similarity_score': score,
-                    'metadata': doc.metadata
-                }
-                search_results.append(result)
-            
-            logger.info(f"Found {len(search_results)} relevant chunks for query")
-            return search_results
-            
-        except Exception as e:
-            logger.error(f"Error searching documents: {e}")
-            return []
-    
-    def get_vector_store_info(self) -> Dict:
-        """Get information about the current vector store."""
-        if not self.vector_store:
-            return {'status': 'not_initialized'}
-        
-        try:
-            # Get basic info (collection count, etc.)
-            info = {
-                'status': 'active',
-                'vector_store_path': str(self.vector_store_path),
-                'chunk_size': self.chunk_size,
-                'chunk_overlap': self.chunk_overlap
-            }
-            
-            # Try to get document count
+        for pdf_file in pdf_files:
             try:
-                # This is a simplified way - actual implementation may vary
-                collection = self.vector_store._collection
-                info['document_count'] = collection.count()
-            except:
-                info['document_count'] = 'unknown'
+                chunks = self.load_and_chunk_pdf(str(pdf_file))
+                
+                if chunks:
+                    all_chunks.extend(chunks)
+                    results['processed_files'].append({
+                        'file': pdf_file.name,
+                        'chunks': len(chunks),
+                        'size_bytes': pdf_file.stat().st_size
+                    })
+                    results['total_chunks'] += len(chunks)
+                else:
+                    results['errors'].append(f"No chunks created from {pdf_file.name}")
+                    
+            except Exception as e:
+                error_msg = f"Failed to process {pdf_file.name}: {str(e)}"
+                results['errors'].append(error_msg)
+                logger.error(error_msg)
+        
+        # Save chunks to JSON for now (since vector store is disabled)
+        if all_chunks:
+            chunks_output_path = self.vector_store_path / "chunks.json"
+            chunks_output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Load processing metadata if available
-            metadata_file = self.vector_store_path / "processing_metadata.json"
-            if metadata_file.exists():
-                with open(metadata_file, 'r') as f:
-                    processing_metadata = json.load(f)
-                    info['last_processed'] = processing_metadata.get('processed_at')
-                    info['total_documents'] = processing_metadata.get('total_documents')
-                    info['total_chunks'] = processing_metadata.get('total_chunks')
+            chunks_data = []
+            for chunk in all_chunks:
+                chunks_data.append({
+                    'content': chunk.page_content,
+                    'metadata': chunk.metadata
+                })
             
-            return info
+            with open(chunks_output_path, 'w', encoding='utf-8') as f:
+                json.dump(chunks_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"💾 Saved {len(chunks_data)} chunks to {chunks_output_path}")
+        
+        end_time = datetime.now()
+        results['processing_time'] = str(end_time - start_time)
+        
+        logger.info(f"✅ RAG processing complete:")
+        logger.info(f"   📁 Files processed: {len(results['processed_files'])}")
+        logger.info(f"   📄 Total chunks: {results['total_chunks']}")
+        logger.info(f"   ⏱️  Processing time: {results['processing_time']}")
+        logger.info(f"   ❌ Errors: {len(results['errors'])}")
+        
+        return results
+    
+    def search_chunks(self, query: str, top_k: int = 5) -> List[Dict]:
+        """Search chunks (basic text search since vector search is disabled)."""
+        chunks_file = self.vector_store_path / "chunks.json"
+        
+        if not chunks_file.exists():
+            logger.warning("No chunks file found. Run process_current_documents first.")
+            return []
+        
+        try:
+            with open(chunks_file, 'r', encoding='utf-8') as f:
+                chunks_data = json.load(f)
+            
+            # Basic text search (case-insensitive)
+            query_lower = query.lower()
+            matches = []
+            
+            for chunk in chunks_data:
+                content_lower = chunk['content'].lower()
+                if query_lower in content_lower:
+                    # Simple relevance scoring based on query word count
+                    score = content_lower.count(query_lower) / len(chunk['content'].split())
+                    matches.append({
+                        'content': chunk['content'][:500] + '...' if len(chunk['content']) > 500 else chunk['content'],
+                        'metadata': chunk['metadata'],
+                        'relevance_score': score
+                    })
+            
+            # Sort by relevance and return top_k
+            matches.sort(key=lambda x: x['relevance_score'], reverse=True)
+            return matches[:top_k]
             
         except Exception as e:
-            logger.error(f"Error getting vector store info: {e}")
-            return {'status': 'error', 'error': str(e)}
+            logger.error(f"Error searching chunks: {e}")
+            return []
+    
+    def get_stats(self) -> Dict[str, any]:
+        """Get statistics about processed documents."""
+        chunks_file = self.vector_store_path / "chunks.json"
+        
+        if not chunks_file.exists():
+            return {'status': 'No processed documents found'}
+        
+        try:
+            with open(chunks_file, 'r', encoding='utf-8') as f:
+                chunks_data = json.load(f)
+            
+            # Collect statistics
+            files = set()
+            total_chars = 0
+            chunk_sizes = []
+            
+            for chunk in chunks_data:
+                files.add(chunk['metadata']['source_file'])
+                total_chars += len(chunk['content'])
+                chunk_sizes.append(len(chunk['content']))
+            
+            return {
+                'total_chunks': len(chunks_data),
+                'unique_files': len(files),
+                'total_characters': total_chars,
+                'avg_chunk_size': sum(chunk_sizes) / len(chunk_sizes) if chunk_sizes else 0,
+                'min_chunk_size': min(chunk_sizes) if chunk_sizes else 0,
+                'max_chunk_size': max(chunk_sizes) if chunk_sizes else 0,
+                'files': list(files)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting stats: {e}")
+            return {'error': str(e)}
+
+
+def main():
+    """Test the RAG processor."""
+    logging.basicConfig(level=logging.INFO)
+    
+    processor = RAGDocumentProcessor()
+    
+    # Process current documents
+    results = processor.process_current_documents()
+    
+    print("\\n📊 RAG Processing Results:")
+    print("=" * 50)
+    print(f"Files processed: {len(results['processed_files'])}")
+    print(f"Total chunks: {results['total_chunks']}")
+    print(f"Processing time: {results['processing_time']}")
+    
+    if results['errors']:
+        print(f"\\n❌ Errors:")
+        for error in results['errors']:
+            print(f"  • {error}")
+    
+    # Show statistics
+    stats = processor.get_stats()
+    if 'error' not in stats:
+        print(f"\\n📈 Statistics:")
+        print(f"  • Unique files: {stats['unique_files']}")
+        print(f"  • Average chunk size: {stats['avg_chunk_size']:.0f} chars")
+        print(f"  • Total characters: {stats['total_characters']:,}")
+    
+    # Test search
+    print(f"\\n🔍 Testing search...")
+    search_results = processor.search_chunks("VSAN", top_k=3)
+    print(f"Found {len(search_results)} results for 'VSAN'")
+    
+    for i, result in enumerate(search_results, 1):
+        print(f"\\n{i}. Score: {result['relevance_score']:.4f}")
+        print(f"   Source: {result['metadata']['source_file']}")
+        print(f"   Content: {result['content'][:150]}...")
 
 
 if __name__ == "__main__":
-    # Simple validation test
-    import tempfile
-    
-    logging.basicConfig(level=logging.INFO)
-    
-    print("🧪 Testing RAG Document Processor...")
-    
-    # Test without OpenAI API key (will have limitations)
-    with tempfile.TemporaryDirectory() as temp_dir:
-        processor = RAGDocumentProcessor(
-            vector_store_path=f"{temp_dir}/vector_store",
-            chunk_size=500,
-            chunk_overlap=50
-        )
-        
-        # Test text splitter
-        test_text = "This is a test document. " * 100  # Create long text
-        test_doc = Document(page_content=test_text, metadata={'source': 'test'})
-        
-        chunks = processor.text_splitter.split_documents([test_doc])
-        
-        if chunks and len(chunks) > 1:
-            print(f"✅ Text splitting works - created {len(chunks)} chunks")
-            print(f"   First chunk length: {len(chunks[0].page_content)}")
-        else:
-            print("❌ Text splitting failed")
-        
-        # Test vector store info (without actual vector store)
-        info = processor.get_vector_store_info()
-        if info['status'] == 'not_initialized':
-            print("✅ Vector store info retrieval works")
-        else:
-            print("❌ Vector store info unexpected")
-    
-    print("✅ RAG Document Processor validation complete")
-    print("ℹ️  Note: Full functionality requires OpenAI API key for embeddings")
+    main()
