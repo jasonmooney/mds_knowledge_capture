@@ -1,5 +1,7 @@
 # Project Plan: MDS Knowledge Capture Agent
 
+> **Repository:** [git@github.com:jasonmooney/mds_knowledge_capture.git](https://github.com/jasonmooney/mds_knowledge_capture)
+
 This plan outlines building an agentic agent for Cisco MDS docs. Follow in VSCode by opening this file and using the outline view.
 
 ## Overview
@@ -10,6 +12,8 @@ This plan outlines building an agentic agent for Cisco MDS docs. Follow in VSCod
 ## Step-by-Step Plan
 1. **Project Setup**
    - [ ] Initialize Git repo.
+   - [ ] Set remote origin:  
+     `git remote add origin git@github.com:jasonmooney/mds_knowledge_capture.git`
    - [ ] Create virtual env and `requirements.txt`.
    - [ ] Set up VSCode workspace (extensions: Python, GitLens).
    - Suggestion: Add `.env` for secrets.
