@@ -9,6 +9,20 @@
       "time": "02:00"
     }
   },
+  "knowledge_source": {
+    "urls": [
+      "https://www.cisco.com/c/en/us/support/storage-networking/mds-9000-series-multilayer-switches/products-release-notes-list.html",
+      "https://www.cisco.com/c/en/us/support/storage-networking/mds-9000-series-multilayer-switches/products-command-reference-list.html",
+      "https://www.cisco.com/c/en/us/support/storage-networking/mds-9000-series-multilayer-switches/products-configuration-guides-list.html"
+    ],
+    "current_dir": "knowledge_source/current",
+    "archive_dir": "knowledge_source/archive"
+  },
+  "llm": {
+    "provider": "openrouter",
+    "model": "mistralai/mistral-7b-instruct",
+    "api_key_env": "OPENROUTER_API_KEY"
+  },
   "primary_url": "https://www.cisco.com/c/en/us/td/docs/storage/san_switches/mds9000/roadmaps/rel90.html",
   "download": {
     "max_concurrent": 5,
@@ -28,8 +42,11 @@
     "max_file_size_mb": 100
   },
   "rag": {
+    "vector_store_path": "chroma_db",
     "chunk_size": 1000,
     "chunk_overlap": 200,
+    "collection_name": "mds_documents",
+    "embedding_model": "all-MiniLM-L6-v2",
     "embeddings_model": "text-embedding-ada-002",
     "vector_store": "chromadb"
   },
