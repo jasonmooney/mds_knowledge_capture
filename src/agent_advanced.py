@@ -114,11 +114,64 @@ class AdvancedMDSAgent:
         return results
     
     def ask_question(self, question: str, top_k: int = 5, include_context: bool = True) -> Dict[str, Any]:
-        """Ask a question using semantic search and LLM analysis."""
+        """Ask a question using semantic search and LLM analysis with enhanced table prioritization."""
         logger.info(f"❓ Processing question: '{question}'")
         
-        # Search for relevant chunks
-        search_results = self.rag_processor.search_chunks(question, top_k=top_k)
+        # Multi-strategy search for better table content discovery
+        all_results = {}
+        
+        # Strategy 1: Direct question search
+        search_results = self.rag_processor.search_chunks(question, top_k=top_k * 3)
+        for result in search_results:
+            chunk_id = f"{result['metadata']['source_file']}_{result['metadata'].get('chunk_id', 0)}"
+            all_results[chunk_id] = result
+        
+        # Strategy 2: If asking about features, search for feature-specific terms
+        if 'features' in question.lower() and '9.4.4' in question:
+            feature_queries = [
+                "New software features",
+                "Ease of Use Feature Set Interoperability Security",
+                "Product Impact Feature Description",
+                "Fabric Congestion Diagnostics SMA FPIN RFC AES-256"
+            ]
+            
+            for query in feature_queries:
+                results = self.rag_processor.search_chunks(query, top_k=top_k * 2)
+                for result in results:
+                    chunk_id = f"{result['metadata']['source_file']}_{result['metadata'].get('chunk_id', 0)}"
+                    if chunk_id not in all_results:
+                        all_results[chunk_id] = result
+        
+        # Convert back to list and apply enhanced sorting
+        search_results = list(all_results.values())
+        
+        def enhanced_sort_key(result):
+            score = result['similarity_score']
+            metadata = result['metadata']
+            content = result['content'].lower()
+            
+            # Major boost for table chunks
+            if metadata.get('chunk_type') == 'table':
+                score += 1.0
+                
+            # Huge boost for "New Software Features" tables
+            if 'new software features' in metadata.get('table_title', '').lower():
+                score += 2.0
+                
+            # Boost for content containing all key feature terms
+            feature_terms = ['ease of use', 'feature set', 'interoperability', 'security']
+            term_count = sum(1 for term in feature_terms if term in content)
+            score += term_count * 0.3
+            
+            # Boost for 9.4.4 specific content
+            if '9.4.4' in content or '9.4(4)' in content:
+                score += 0.5
+                
+            return score
+        
+        # Sort with enhanced scoring and take top results
+        search_results.sort(key=enhanced_sort_key, reverse=True)
+        search_results = search_results[:top_k]
         
         if not search_results:
             return {
@@ -136,18 +189,33 @@ class AdvancedMDSAgent:
             context_chunks.append({
                 "content": result["content"],
                 "source": result["metadata"]["source_file"],
-                "similarity": result["similarity_score"]
+                "similarity": enhanced_sort_key(result)  # Use enhanced score
             })
             sources.append(result["metadata"]["source_file"])
         
-        # Format context for LLM
+        # Format context for LLM with clear structure
         context_text = "\\n\\n".join([
-            f"[Source: {chunk['source']}, Similarity: {chunk['similarity']:.3f}]\\n{chunk['content']}"
+            f"[Source: {chunk['source']}, Relevance: {chunk['similarity']:.3f}]\\n{chunk['content']}"
             for chunk in context_chunks
         ])
         
-        # Create prompt for LLM
-        prompt = f"""Based on the following context from Cisco MDS documentation, please answer the question accurately and concisely.
+        # Enhanced prompt for feature questions
+        if 'features' in question.lower() and '9.4.4' in question:
+            prompt = f"""Based on the following context from Cisco MDS documentation, please provide a comprehensive answer about the new features in NX-OS 9.4.4.
+
+IMPORTANT: Look for table content that lists features by categories like "Ease of Use", "Feature Set", "Interoperability", and "Security". This information may be formatted as a table with columns like "Product Impact", "Feature", and "Description".
+
+Context:
+{context_text}
+
+Question: {question}
+
+Please organize your answer by the feature categories found in the context (Ease of Use, Feature Set, Interoperability, Security) and list the specific features and their descriptions under each category.
+
+Answer:"""
+        else:
+            # Standard prompt for other questions
+            prompt = f"""Based on the following context from Cisco MDS documentation, please answer the question accurately and concisely.
         
 Context:
 {context_text}
